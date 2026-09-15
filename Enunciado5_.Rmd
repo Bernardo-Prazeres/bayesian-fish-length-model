@@ -1,0 +1,1436 @@
+---
+title: ""
+author: ""
+date: ""
+output:
+  pdf_document:
+    latex_engine: xelatex
+    dev: cairo_pdf
+    toc_depth: 2
+    number_sections: true
+    fig_caption: true
+header-includes:
+  - \usepackage{enumitem}
+  - \usepackage{graphicx}
+  - \usepackage{float}
+  - \usepackage{booktabs}
+  - \renewcommand{\contentsname}{Índice Geral}
+  - \renewcommand{\listfigurename}{Índice de Figuras}
+  - \renewcommand{\listtablename}{Índice de Tabelas}
+---
+
+\begin{titlepage}
+
+\includegraphics[width=0.5\textwidth]{figures/main/NovaSST.png} \\
+
+    \hspace{2cm}\\
+    \hspace{1.2cm}\Large Departamento de Matemática\\
+    \hspace{2cm}\Large NOVA FCT\\
+    \hspace{2cm}\Large 2025-2026\\
+    \vfill
+    \centering
+    {\Large Métodos Bayesianos}\\[2\baselineskip] 
+
+    \centering
+    {\Huge \bfseries Trabalho de Métodos Bayesianos - Enunciado 5 }\\[2\baselineskip] 
+    {\Large Faculdade de Ciências e Tecnologia\\ Universidade Nova de Lisboa}\\[2\baselineskip]
+
+    \vspace{1cm}    
+\raggedright
+
+\Large \textbf{Elaborado por:}\\[0.5\baselineskip]
+
+\begin{itemize}[label=-, leftmargin=*]
+    \item Bernardo Prazeres, nº 73673
+    \item María Teresa Viciosa, nº 75149
+    \item Miguel Pimentel, nº 68270
+\end{itemize}
+
+\vfill
+
+\Large \textbf{Professora Isabel Natário}\\
+\vspace{1cm}
+
+    \vfill
+    \large junho 2026
+\end{titlepage}
+
+\thispagestyle{empty}
+\newpage
+
+\thispagestyle{empty}
+
+\tableofcontents 
+\vspace{1.5cm}
+
+\listoffigures  
+\vspace{1.5cm}
+
+\listoftables 
+
+\newpage
+
+
+```{r setup, include=FALSE}
+#Clean WorkPlace
+rm(list=ls(all=TRUE))
+graphics.off()
+close.screen(all=TRUE)
+erase.screen()
+
+if (!require("knitr")) install.packages("knitr")
+
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center",
+  fig.width = 7,
+  fig.height = 4,
+  cache = FALSE
+)
+
+# Mudar diretriz antes de utilizar :)
+knitr::opts_knit$set(root.dir = "C:/Users/monic/OneDrive/Documentos/School/MB/Trabalho")
+setwd("C:/Users/monic/OneDrive/Documentos/School/MB/Trabalho")
+
+Thepackages_grouped <- list(
+  
+  first = c("knitr","bookdown"),
+  
+  Wrangling = c("tidyverse", "dplyr", "tidyr"),
+  
+  Visualization = c("ggplot2", "patchwork", "gridExtra"),
+  
+  Bayesian = c("bayesrules","HDInterval","R2jags","bayesplot"),
+  
+  Modeling = c("tidymodels", "rpart", "quadprog"),
+  
+  File_IO = c("openxlsx", "writexl")
+)
+Thepackages <- unlist(Thepackages_grouped, use.names = FALSE)
+
+for(pkg in Thepackages){
+   if (!require(pkg, character.only = TRUE)) {
+    install.packages(pkg)
+    library(pkg, character.only = TRUE)
+  }
+}
+
+#Clean WorkPlace
+rm(list=ls(all=TRUE))
+graphics.off()
+close.screen(all=TRUE)
+erase.screen()
+```
+
+\newpage
+
+# Introdução e Enquadramento
+
+No âmbito do estudo da biologia marinha e da gestão de recursos aquícolas,
+a modelação do crescimento das espécies de peixes desempenha um papel
+fundamental para compreender o desenvolvimento populacional e a saúde dos
+ecossistemas. O presente trabalho tem como objetivo analisar e modelar o
+comprimento ($Y$) de uma determinada espécie de peixes a partir de uma abordagem
+estatística baseada no paradigma Bayesiano.
+
+Para este efeito, foi selecionada uma amostra de $n = 45$ peixes, para os quais
+foi registado o comprimento individual ($Y_i$, expresso em metros), bem como um
+conjunto de covariáveis ambientais e biológicas que podem influenciar o 
+crescimento da espécie. As variáveis consideradas no estudo são:
+
+Idade ($x_1$): Idade do peixe, aferida através de métodos físico-químicos
+(uma variável contínua/discreta indicativa do tempo de desenvolvimento).
+
+Género ($x_2$): Variável binária (dummy) que identifica o género do peixe,
+assumindo o valor $1$ para indivíduos do género masculino e $0$ para indivíduos do
+género feminino, permitindo avaliar a existência de dimorfismo sexual no
+crescimento.
+
+Relevo ($x_3$): Percentagem de massa rochosa no ambiente onde o peixe foi
+pescado, servindo como um indicador das características do habitat e da 
+influência do meio envolvente no tamanho dos peixes.
+
+Assume-se como modelo populacional de partida que o comprimento dos peixes, condicionado aos parâmetros do modelo, segue uma distribuição Normal:
+
+$$Y_i \mid \mu, \tau \sim \text{Normal}(\mu, \tau^{-1})$$
+
+onde $\mu$ representa a média teórica do comprimento (que poderá ser modelada em
+função das covariáveis) e $\tau$ a precisão do modelo (o inverso da variância,
+$\tau = 1/\sigma^2$), sendo ambos os parâmetros desconhecidos.
+
+A análise computacional e a inferência dos parâmetros serão realizadas 
+recorrendo ao software R, iniciando-se o estudo com uma análise exploratória de
+dados (AED) para compreender a distribuição do comprimento e o comportamento das
+variáveis explicativas.
+
+Para traduzir estas dinâmicas, avaliou-se três especificações de modelação preditiva. O Modelo 1 estabelece uma estrutura probabilística simples , sem covariáveis, onde apenas se estimam os parâmetros globais da distribuição Normal ($\mu$ e $\tau$) para quantificar o comprimento médio da população. O Modelo 2 evolui para uma regressão linear múltipla, incorporando a idade, o género e o relevo para isolar os impactos individuais e mitigar fatores de confundimento. Por fim, o Modelo 3 adota uma estrutura de efeitos aleatórios por indivíduo, testando se a variação do comprimento é dominada por características idiossincráticas de cada peixe.
+
+A escolha destas arquiteturas visa respeitar o princípio da parcimónia numa amostra reduzida ($n = 45$), uma vez que modelos com excesso de parâmetros (como os efeitos aleatórios) correm o risco de sobreajustamento. A expectativa é identificar a formulação com o melhor compromisso entre ajuste e simplicidade. Para fundamentar esta decisão sob o paradigma Bayesiano, serão utilizados o critério DIC (Deviance Information Criterion), o erro absoluto médio (MAE) e as taxas de cobertura dos intervalos preditivos, esperando-se combinar superioridade métrica com uma interpretação biológica clara sobre o desenvolvimento da espécie.
+
+\newpage
+
+# Análise Exploratória dos Dados
+
+## Leitura e estrutura dos dados
+
+O passo preliminar e fundamental para qualquer modelação estatística rigorosa consiste na validação estrutural da base de dados. Este processo garante que a transição entre o armazenamento bruto dos dados e o ambiente de computação estatística ocorre sem perda de integridade e que as variáveis estão configuradas no formato operacional correto.
+
+Para este estudo, os dados foram importados a partir de um ficheiro de texto plano (Dados5.txt). 
+
+```{r load-data, include=FALSE}
+
+dados <- read.table("Dados5.txt", header = TRUE)
+
+dados$genero_f <- factor(dados$x2, labels = c("Feminino", "Masculino"))
+
+```
+
+```{r glimpse, include=FALSE}
+glimpse(dados)
+```
+
+
+
+A base de dados é composta por `r nrow(dados)` observações organizadas em quatro colunas. A variável de interesse (dependente) reflete o desenvolvimento biológico dos espécimes, enquanto as restantes três colunas contêm as variáveis independentes, baseadas nos indicadores biofísicos do local de captura.
+
+A Tabela 1 sistematiza a estrutura das variáveis do conjunto de dados, dando uma pequena descrição e a escala de medição de cada uma das variáveis.
+
+
+| Variável | Descrição |
+|----------|-----------|
+| `y`  | Comprimento do peixe (metros) — variável resposta |
+| `x1` | Idade do peixe (anos) |
+| `x2` | Género (1 = masculino; 0 = feminino) |
+| `x3` | Percentagem de massa rochosa no ambiente de pesca (Relevo) |
+
+Table: Descrição das variáveis do conjunto de dados.
+
+## Estatísticas descritivas
+
+A análise das estatísticas de tendência central e de dispersão (Tabela 2 e Tabela 3) permite desenhar um perfil preliminar da amostra, evidenciando heterogeneidades importantes entre as variáveis preditoras.
+
+```{r summary, include = FALSE}
+
+summary(dados[, c("y","x1","x2","x3")])
+```
+
+```{r desc-table, echo = FALSE, message = FALSE, warning = FALSE}
+desc_tab <- dados  |> 
+  select(y, x1, x3)  |> 
+  pivot_longer(everything(), names_to = "Variavel")  |> 
+  group_by(Variavel)  |> 
+  summarise(
+    n       = n(),
+    Media   = round(mean(value), 3),
+    DP      = round(sd(value), 3),
+    Minimo  = round(min(value), 3),
+    Q1      = round(quantile(value, 0.25), 3),
+    Mediana = round(median(value), 3),
+    Q3      = round(quantile(value, 0.75), 3),
+    Maximo  = round(max(value), 3),
+    CV      = round(sd(value) * 100 / mean(value), 1)
+  ) %>%
+  mutate(Variavel = case_match(Variavel,
+    "y"  ~ "Comprimento (m)",
+    "x1" ~ "Idade (anos)",
+    "x3" ~ "Relevo (%)",
+    .default = Variavel))
+
+kable(desc_tab,
+      caption   = "Estatísticas descritivas das variáveis contínuas do estudo. CV = coeficiente de variação (%).",
+      col.names = c("Variável","n","Média","Sd","Mínimo","Q1","Mediana","Q3","Máximo","CV (%)"),
+      align     = "lcccccccc")
+```
+
+```{r, include=FALSE}
+freq_tab <- dados |> 
+  group_by(Genero = genero_f) |> 
+  summarise(n = n()) |> 
+  mutate(Proporcao   = round(n / sum(n), 3),
+         Percentagem = paste0(round(100 * n / sum(n), 1), "%"))
+
+```
+
+```{r freq-table, echo = FALSE, message = FALSE, warning = FALSE}
+kable(freq_tab,
+      caption   = "Frequência absoluta e relativa de cada género na amostra.",
+      col.names = c("Género","n","Proporção","Percentagem"),
+      align     = "lccc")
+```
+
+No que respeita à composição demográfica da amostra, os resultados da Tabela 3 revelam uma assimetria acentuada no esforço de amostragem ou na dinâmica populacional local: a amostra é maioritariamente composta por peixes do género masculino (`r freq_tab$Percentagem[freq_tab$Genero == "Masculino"]`), correspondendo a 31 dos 45 indivíduos avaliados, enquanto o género feminino representa uma fração secundária de apenas 31.1% ($n = 14$).
+
+Esta dominância de indivíduos machos ditará que as conclusões globais do estudo macrobiológico estarão mais fortemente ancoradas no perfil de desenvolvimento masculino, um fator que exige cautela na generalização dos resultados para a totalidade da espécie.
+
+Cruzando estes dados com os indicadores sumários das variáveis contínuas expostos na Tabela 2, observam-se padrões de variabilidade marcadamente distintos entre os parâmetros biológicos e ambientais:
+
+- Comprimento do Peixe ($y$): O comprimento médio fixa-se em `r round(mean(dados$y), 3)` metros ($Sd = `r round(sd(dados$y), 3)`$ m), com limites entre `r round(min(dados$y), 2)` e `r round(max(dados$y), 2)` metros. O baixo Coeficiente de Variação (10.0%) confirma uma forte homogeneidade morfológica. Isto sugere que a captura se concentrou em indivíduos que já ultrapassaram as fases de crescimento larval ou juvenil precoce, estabilizando em torno da mediana de 2.41 metros.
+
+- Idade do Peixe ($x_1$): Em sentido oposto, a estrutura etária revela elevada volatilidade, variando de `r round(min(dados$x1), 1)` a `r round(max(dados$x1), 1)` anos. O expressivo Coeficiente de Variação (49.2%) traduz uma amostra marcadamente heterogénea. Sob a perspetiva da modelação, esta ampla dispersão cronológica é ideal, pois fornece uma base informativa rica para mapear com precisão a taxa de crescimento ao longo do tempo.
+
+- Percentagem de Massa Rochosa ($x_3$): O relevo ambiental apresenta grande variação, com média de `r round(mean(dados$x3), 3)`% e $CV = 38.0\%$, cobrindo desde fundos planos até áreas de alta complexidade (máximo de 39.50%). O valor mínimo de -2.50% é inconsistente com a natureza percentual da variável, não admitindo interpretação física direta. Este valor deve ser sinalizado como potencial erro de medição, calibração ou registo, para posterior diagnóstico.
+
+
+## Distribuição da variável resposta
+
+```{r hist-y,fig.cap="Histograma do comprimento dos peixes (Y) com curva de densidade sobreposta.", echo = FALSE, message = FALSE, warning = FALSE, fig.width = 5, fig.height = 3}
+ggplot(dados, aes(x = y)) +
+  geom_histogram(aes(y = after_stat(density)),
+                 bins = 12, fill = "lightblue", color = "black") +
+  geom_density(color = "navy", linewidth = 1) +
+  geom_vline(xintercept = mean(dados$y),
+             linetype = "dashed", color = "red", linewidth = 0.8) +
+  labs(x = "Comprimento (m)", y = "Densidade",
+       subtitle = "Dataset Dados5") +
+  theme_bw()
+```
+
+```{r , include = FALSE}
+shapiro.test(dados$y)
+```
+
+A inspeção visual do histograma e da curva de densidade (Figura 1) revela que a distribuição do comprimento dos peixes ($y$) não é perfeitamente simétrica, apresentando uma assimetria negativa (à esquerda), caracterizada por uma cauda mais longa na região dos comprimentos mais baixos (entre 1,6 e 2,0 metros).
+
+A moda concentra-se em torno dos 2,4 a 2,5 metros, situando-se à direita da média amostral (representada pela linha vertical a tracejado vermelho), o que é típico de distribuições assétricas.
+
+Esta perceção visual é formalmente confirmada pelo teste de Shapiro-Wilk, que rejeitou a hipótese nula de normalidade dos dados brutos ($W = 0.92642$, $p\text{-value} = 0.007023$), comprovando estatisticamente a existência deste desvio em relação a uma distribuição Normal ideal.
+
+Não obstante este desvio e a assimetria detetada na variável resposta, e tendo em conta que se pode assumir que $Y_i$ segue uma distribuição Normal de parâmetros desconhecidos, manteve-se este pressuposto.
+
+## Análise por género
+
+```{r boxplot-gender, fig.cap="Boxplot do comprimento dos peixes por género. ", echo = FALSE, message = FALSE, warning = FALSE, fig.width = 5, fig.height = 3}
+ggplot(dados, aes(x = genero_f, y = y, fill = genero_f)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("Feminino" = "pink", "Masculino" = "lightblue")) +
+  labs(x = "Género", y = "Comprimento (m)",
+       subtitle = "Dataset Dados5") +
+  theme(legend.position = "none")
+```
+
+O boxplot do comprimento por género (Figura 2) revela que as fêmeas apresentam, em média, comprimentos superiores aos dos machos, com a mediana das fêmeas a situar-se próxima dos 2,6 metros, face aos cerca de 2,3 metros observados nos machos.
+
+```{r desc-gender-table, echo = FALSE, message = FALSE, warning = FALSE}
+tab_genero <- dados |> 
+  group_by(Genero = genero_f) |> 
+  summarise(
+    n       = n(),
+    Media   = round(mean(y), 3),
+    Sd      = round(sd(y), 3),
+    Mediana = round(median(y), 3),
+    Minimo  = round(min(y), 3),
+    Maximo  = round(max(y), 3)
+  )
+
+kable(tab_genero,
+      caption   = "Estatísticas descritivas do comprimento (m) por género.",
+      col.names = c("Género","n","Média","Sd","Mediana","Mínimo","Máximo"),
+      align     = "lcccccc")
+```
+
+É importante notar o claro desequilíbrio no tamanho da amostra entre os géneros: o grupo dos machos é substancialmente maior, o que se reflete na maior amplitude dos dados e na presença de outliers inferiores (peixes invulgarmente pequenos, entre 1,6 e 1,8 metros).
+
+## Relação entre comprimento e covariáveis contínuas
+
+```{r scatter-age, fig.cap="Diagrama de dispersão do comprimento em função da idade, com linha de tendência (lowess) por género.", echo = FALSE, message = FALSE, warning = FALSE, fig.width = 5, fig.height = 3}
+ggplot(dados, aes(x = x1, y = y, color = genero_f)) +
+  geom_point(size = 1.5) +
+  geom_smooth() +
+  scale_color_manual(values = c("Feminino" = "red", "Masculino" = "blue")) +
+  labs(x = "Idade (anos)", y = "Comprimento (m)",
+       color = "Género", subtitle = "Dataset Dados5") +
+  theme_bw()
+```
+
+O gráfico de dispersão entre o comprimento e a idade evidencia uma relação positiva clara: peixes mais velhos tendem a ser maiores, o que é biologicamente esperado em modelos de crescimento. O diagrama de dispersão com as curvas de tendência lowess (Figura 3) detalha esta dinâmica e valida o desequilíbrio demográfico da amostra. Observa-se que os machos (maioritários na amostra) concentram-se nas faixas etárias mais jovens (até aos 16 anos), exibindo uma taxa de crescimento inicial rápida que estabiliza por volta dos 7 anos de idade. Em contrapartida, as fêmeas amostradas são tendencialmente mais velhas (entre os 10 e os 30 anos) e continuam a crescer de forma gradual até idades avançadas.
+
+Esta tendência de crescimento é, portanto, consistente entre géneros; contudo, o facto de a maioria dos peixes do género feminino na amostra ser mais velha pode confundir parcialmente os efeitos do género e da idade na análise dos dados brutos. Esta interdependência realça a necessidade de recorrer a modelos estatísticos que consigam controlar ou isolar estas fontes de variabilidade.
+
+```{r scatter-relevo, fig.cap="Diagrama de dispersão do comprimento em função do relevo (% de massa rochosa), com linha de tendência global.", echo = FALSE, message = FALSE, warning = FALSE,fig.pos = "H", fig.width = 5, fig.height = 3}
+ggplot(dados, aes(x = x3, y = y, color = genero_f)) +
+  geom_point(size = 1.5) +
+  geom_smooth(aes(group = 1), color = "black") +
+  scale_color_manual(values = c("Feminino" = "red", "Masculino" = "blue")) +
+  labs(x = "Relevo (%)", y = "Comprimento (m)",
+       color = "Género", subtitle = "Dataset Dados5") +
+  theme_bw()
+```
+
+Por outro lado, a relação entre o comprimento e o relevo (Figura 4) é praticamente inexistente. A linha de tendência global (a preto) é quase horizontal e os pontos apresentam uma elevada dispersão ao longo de todo o eixo da percentagem de massa rochosa. Isto sugere fortemente que o relevo pouco contribui para explicar a variabilidade no comprimento dos peixes.
+
+```{r boxplot-age-gender, fig.cap="Boxplot da idade dos peixes por género.", echo = FALSE, message = FALSE, warning = FALSE,fig.pos = "H", fig.width = 5, fig.height = 3}
+ggplot(dados, aes(x = genero_f, y = x1, fill = genero_f)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("Feminino" = "pink", "Masculino" = "lightblue")) +
+  labs(x = "Género", y = "Idade (anos)",
+       subtitle = "Dataset Dados5") +
+  theme(legend.position = "none")
+```
+
+Aprofundando a distribuição etária através do boxplot da idade por género (Figura 5), confirma-se visualmente que as fêmeas na amostra são, em média, substancialmente mais velhas do que os machos, apresentando ainda três outliers de idades muito avançadas (acima dos 20 anos). Esta assimetria amostral é crucial para a interpretação dos resultados: parte da diferença de comprimento observada entre géneros no início pode dever-se simplesmente a esta disparidade de idades, e não a um efeito biológico direto do género. Daí decorre a necessidade de recorrer a modelos de regressão múltipla que incluam ambas as covariáveis em simultâneo para isolar os seus efeitos individuais, cujas formulações serão posteriormente comparadas através do critério DIC (Deviance Information Criterion) para determinar qual melhor descreve o comprimento dos peixes.
+
+
+## Correlações
+
+```{r calculate corr-table, include = FALSE}
+cor_mat <- round(cor(dados[, c("y","x1","x2","x3")]), 3)
+rownames(cor_mat) <- colnames(cor_mat) <-
+  c("Comprimento","Idade","Género","Relevo")
+```
+
+A matriz de correlações confirma as observações anteriores: a idade é a covariável mais correlacionada com o comprimento (r = `r cor_mat["Comprimento","Idade"]`), seguida do género (r = `r cor_mat["Comprimento","Género"]`, negativo porque machos são codificados como 1 e tendem a ser mais curtos). O relevo tem uma correlação quase nula com o comprimento (r = `r cor_mat["Comprimento","Relevo"]`), reforçando a ideia de que poderá não ser uma covariável relevante. 
+
+```{r show corr-table, echo = FALSE, message = FALSE, warning = FALSE}
+kable(cor_mat,
+      caption = "Matriz de correlações de Pearson entre as variáveis numéricas.",
+      align   = "cccc")
+```
+
+Concluindo, a análise exploratória sugere que a idade é o principal preditor do comprimento dos peixes, com contribuições secundárias do género e praticamente nenhuma do relevo.
+
+Em suma, a análise exploratória sugere que a idade e o género são os principais preditores do comprimento dos peixes, embora os seus efeitos estejam fortemente interligados devido à estrutura demográfica da amostra. O relevo surge como a covariável menos relevante, uma premissa que será testada através dos coeficientes estimados nos modelos lineares utilizados.
+
+---
+
+# Modelo 1 — Normal com distribuição a priori para µ e τ
+
+## Especificação do modelo
+
+O primeiro modelo é o mais simples, assumindo que todos os peixes partilham a mesma média $\mu$ e precisão $\tau$, não distinguindo entre indivíduos com diferentes idades, géneros ou relevos.
+
+$$Y_i \mid \mu,\, \tau \sim \text{Normal}\!\left(\mu,\, \tau^{-1}\right), \quad i = 1,\ldots,45$$
+
+com distribuições a priori:
+
+$$\mu \sim \text{Normal}(2,\, 0.5^2) \qquad \tau \sim \text{Gama}(50,\, 5)$$
+
+A distribuição a priori de $\mu$ é moderadamente informativa, centrada em 2 metros com desvio-padrão 0.5 m, o que é compatível com os dados observados (média amostral = `r round(mean(dados$y),3)` m). A distribuição a priori de $\tau$ tem média $50/5=10$, correspondendo a $\sigma \approx 0.32$ m, e é relativamente informativa. Estas escolhas refletem um conhecimento prévio razoável sobre o comprimento típico desta espécie.
+
+O modelo em linguagem BUGs é o seguinte:
+
+```
+  for (i in 1:n) {
+    Y[i]      ~ dnorm(mu, tau)
+    Y.pred[i] ~ dnorm(mu, tau)
+  }
+  mu    ~ dnorm(2, 4)
+  tau   ~ dgamma(50, 5)
+  sigma <- sqrt(1 / tau)
+```
+
+## Ajuste por MCMC
+
+O ajuste do modelo foi realizado através de métodos de simulação Markov Chain Monte Carlo (MCMC), utilizando o software JAGS a partir do R (via pacote R2jags). Este método permite obter amostras da distribuição a posteriori dos parâmetros combinando a verosimilhança dos dados com as distribuições a priori definidas.
+
+```{r model1-def, include = FALSE}
+model1 <- function() {
+  for (i in 1:n) {
+    Y[i]      ~ dnorm(mu, tau)
+    Y.pred[i] ~ dnorm(mu, tau)
+  }
+  mu    ~ dnorm(2, 4)
+  tau   ~ dgamma(50, 5)
+  sigma <- sqrt(1 / tau)
+}
+
+data1   <- list(Y = dados$y, n = nrow(dados))
+params1 <- c("mu", "tau", "sigma", "Y.pred")
+init1   <- function() list("mu" = 2, "tau" = 1)
+```
+
+```{r model1-run, cache=TRUE, include = FALSE}
+set.seed(123)
+mod1 <- jags(
+  data               = data1,
+  inits              = init1,
+  parameters.to.save = params1,
+  n.chains           = 3,
+  n.iter             = 20000,
+  n.burnin           = 10000,
+  n.thin             = 1,
+  model.file         = model1
+)
+print(mod1)
+```
+
+Para o ajuste, foram coordenadas 3 cadeias MCMC independentes, cada uma com 20 000 iterações. As primeiras 10 000 iterações de cada cadeia foram descartadas como burn-in (período de aquecimento do algoritmo para garantir a convergência), resultando num total de 30 000 amostras válidas da distribuição a posteriori para a análise dos parâmetros e comparação dos modelos através do DIC.
+
+O Modelo 1 foi ajustado com sucesso, registando uma convergência ideal das três cadeias independentes ($\hat{R} = 1.001$). As estimativas a posteriori dos parâmetros globais e os respetivos intervalos de credibilidade de 95% encontram-se resumidos na Tabela seguinte:
+
+
+```{r model1-conv-table, echo = FALSE, message = FALSE, warning = FALSE}
+res1 <- mod1$BUGSoutput$summary
+p1   <- c("mu","tau","sigma")
+
+tab1 <- data.frame(
+  Parametro = c("µ","τ","σ"),
+  Media     = round(res1[p1, "mean"],  4),
+  DP        = round(res1[p1, "sd"],    4),
+  IC2.5     = round(res1[p1, "2.5%"], 4),
+  IC97.5    = round(res1[p1, "97.5%"],4),
+  Rhat      = round(res1[p1, "Rhat"], 4),
+  neff      = round(res1[p1, "n.eff"],0)
+)
+
+kable(tab1,
+      caption   = "Sumário a posteriori e diagnósticos de
+      convergência do Modelo 1.",
+      col.names = c("Parâmetro","Média","D.P.","IC 2.5%","IC 97.5%","R-hat","n.eff"),
+      align     = "lcccccc")
+```
+
+Como métrica de ajuste e complexidade, o modelo registou uma penalização de parâmetros efetivos $p_V = 2.9$ e um DIC = 5.4, valores que servirão de base para avaliar o ganho preditivo ao introduzir as covariáveis nos modelos seguintes.
+
+## Convergência
+
+Para validar a fiabilidade das estimativas obtidas, é imperativo avaliar se o algoritmo MCMC convergiu para a distribuição alvo e se a amostragem foi eficiente. O primeiro diagnóstico visual baseia-se na análise das trajetórias das cadeias ao longo das iterações salvaguardadas.
+
+```{r model1-trace, echo = FALSE, message = FALSE, warning = FALSE, fig.cap="Trace plots das três cadeias MCMC para os parâmetros do Modelo 1. ", fig.width = 7.4, fig.height = 2.5,fig.pos = "H"}
+mod1.mcmc <- as.mcmc(mod1)
+color_scheme_set("blue")
+mcmc_trace(mod1.mcmc, pars = c("μ","τ","σ")) +
+  ggtitle("Trace plots — Modelo 1")
+```
+
+Como se observa na Figura 6, os trace plots mostram uma excelente mistura das três cadeias independentes para todos os parâmetros ($\mu$, $\tau$ e $\sigma$). O comportamento sobreposto e homogéneo das trajetórias assemelha-se a ruído branco, indicando que o algoritmo explorou de forma estável o espaço paramétrico e que o período de burn-in de 10 000 iterações foi totalmente suficiente. Esta estabilidade permite mapear com segurança as respetivas densidades a posteriori.
+
+```{r model1-areas, fig.cap="Distribuições a posteriori de µ e σ (Modelo 1), com intervalos de credibilidade de 90% e 95% e média a posteriori.", echo = FALSE, message = FALSE, warning = FALSE, fig.width = 5, fig.height = 2.5,fig.pos = "H"}
+p_mu <- mcmc_areas(mod1.mcmc,
+                   pars       = c("mu"),
+                   prob       = 0.90,
+                   prob_outer = 0.95,
+                   point_est  = "mean") +
+  ggtitle("Distribuição a posteriori de µ e de σ — Modelo 1")
+
+p_sigma <- mcmc_areas(mod1.mcmc,
+                      pars       = c("sigma"),
+                      prob       = 0.90,
+                      prob_outer = 0.95,
+                      point_est  = "mean") +
+    ggtitle("  ")
+
+
+grid.arrange(p_mu, p_sigma, ncol = 2)
+```
+
+A Figura 7 ilustra a incerteza associada às estimativas através das áreas de credibilidade. A distribuição a posteriori de $\mu$ está centrada em $`r round(res1["mu","mean"],3)`$ m (IC 95%: [$`r round(res1["mu","2.5%"],3)`$; $`r round(res1["mu","97.5%"],3)`$]), enquanto o desvio padrão populacional $\sigma$ se fixou em $`r round(res1["sigma","mean"],3)`$ m (IC 95%: [$`r round(res1["sigma","2.5%"],3)`$; $`r round(res1["sigma","97.5%"],3)`$]). Contudo, para garantir que estas formas e intervalos não são enviesados por dependências internas na simulação, analisa-se a estrutura de autocorrelação das cadeias.
+
+```{r model1-acf, fig.cap="Autocorrelação das simulações MCMC — Modelo 1.", echo = FALSE, message = FALSE, warning = FALSE, fig.width = 4, fig.height = 2.5,fig.pos = "H"}
+mcmc_acf(mod1.mcmc, pars = c("mu","tau","sigma")) +
+  ggtitle("Autocorrelação — Modelo 1")
+```
+
+O diagnóstico é formalizado pela análise de dependência na Figura 8 e pelos indicadores numéricos de convergência. A autocorrelação mostra-se negligenciável para todos os parâmetros, sofrendo um decréscimo imediato para zero logo após as primeiras iterações, o que significa que amostras consecutivas da cadeia são praticamente independentes entre si, uma vez que  quanto menor a autocorrelação, mais eficiente é a amostragem e mais fiáveis são as estimativas. Este comportamento é robustecido pela Tabela 6, onde os valores de $\hat{R}$ são estritamente iguais a 1.00 e os tamanhos efetivos da amostra ($n_{\text{eff}}$) atingiram o limite máximo de 30 000 observações. 
+
+## Predictive checks
+
+```{r model1-ppc-calc, include=FALSE}
+yrep1       <- mod1$BUGSoutput$sims.list$Y.pred
+pred.mean1  <- colMeans(yrep1)
+pred.sd1    <- apply(yrep1, 2, sd)
+MAE1        <- median(abs(dados$y - pred.mean1))
+MAE_scaled1 <- median(abs(dados$y - pred.mean1) / pred.sd1)
+
+pred.q1 <- data.frame(
+  Q2.5  = apply(yrep1, 2, quantile, 0.025),
+  Q25   = apply(yrep1, 2, quantile, 0.25),
+  Q75   = apply(yrep1, 2, quantile, 0.75),
+  Q97.5 = apply(yrep1, 2, quantile, 0.975)
+)
+within50_1 <- mean(dados$y > pred.q1$Q25  & dados$y < pred.q1$Q75)
+within95_1 <- mean(dados$y > pred.q1$Q2.5 & dados$y < pred.q1$Q97.5)
+```
+
+```{r model1-ppc-plot, fig.pos = "H", fig.width = 5, fig.height = 2.5, fig.cap="Posterior predictive check do Modelo 1: distribuição observada (azul escuro) vs 50 distribuições preditivas simuladas (azul claro).", echo = FALSE, message = FALSE, warning = FALSE}
+set.seed(123)
+ppc_dens_overlay(dados$y, yrep = yrep1[sample(1:nrow(yrep1), 50), ]) +
+  ggtitle("Posterior Predictive Check — Modelo 1") +
+  labs(x = "Comprimento (m)")
+```
+
+A validação preditiva do Modelo 1 revela as limitações ao não ter em conta as covariáveis. O gráfico de Posterior Predictive Check (Figura 9) demonstra que, embora as 50 distribuições simuladas ($y_{\text{rep}}$, linhas claras) capturem corretamente a localização central dos dados reais ($y$, linha escura), elas falham em reproduzir a forma da distribuição observada. As simulações geram maioritariamente curvas relativamente simétricas, embora também existam algumas bimodais, sendo incapazes de modelar a assimetria à esquerda e o pico pronunciado (moda) característicos desta população de peixes.
+
+```{r model1-ppc-table, echo = FALSE, message = FALSE, warning = FALSE}
+tab_ppc1 <- data.frame(
+  Metrica = c("MAE","MAE scaled","Within 50%","Within 95%"),
+  Valor   = c(round(MAE1, 4), round(MAE_scaled1, 4),
+              paste0(round(100*within50_1, 1), "%"),
+              paste0(round(100*within95_1, 1), "%"))
+)
+
+kable(tab_ppc1,
+      caption   = "Métricas de validação preditiva (Posterior Predictive Check) para o Modelo 1.",
+      col.names = c("Métrica","Valor"),
+      align     = "lc")
+```
+
+As métricas de desempenho (Tabela 7) corroboram esta falha de ajuste:
+
+A leitura dos indicadores da Tabela 7 permite traçar o perfil de erro do modelo:
+
+- MAE ($`r round(MAE1, 4)`$ m): O erro absoluto mediano das previsões pontuais representa o desvio típico esperado entre os comprimentos previstos e os observados num modelo sem covariáveis.
+
+- MAE Escalado ($`r round(MAE_scaled1, 4)`$): Os desvios de previsão representam cerca de $`r round(MAE_scaled1*100, 1)`\%$ da escala da variável resposta, valor consideravelmente elevado, refletindo a limitação de um modelo exclusivamente baseado numa média global.
+
+- Cobertura de 50% ($`r round(100*within50_1, 1)`\%$): O intervalo preditivo central (entre os percentis 25% e 75%) retém aproximadamente $`r round(100*within50_1, 1)`\%$ das observações, valor acima de $50\%$. Este excesso indica que as bandas preditivas são demasiado largas (o modelo, por não dispor de covariáveis, compensa inflacionando a incerteza).
+
+- Cobertura de 95% ($`r round(100*within95_1, 1)`\%$): O intervalo preditivo abrangente de $95\%$ retém cerca de $`r round(100*within95_1, 1)`\%$ dos dados, valor muito próximo do teórico, sugerindo que a calibração nas caudas é aceitável ainda que o modelo seja globalmente pobre.
+
+Como o Modelo 1 assume uma única média $\mu$ idêntica para todos os indivíduos, a variabilidade individual não explicada inflaciona artificialmente o desvio padrão ($\sigma$). Estes resultados justificam e motivam diretamente a transição para o Modelo 2, onde a inclusão de covariáveis tentará modelar esta estrutura biológica oculta.
+
+---
+
+# Modelo 2 — Regressão Linear Múltipla
+
+## Especificação do modelo
+
+Este modelo melhora o Modelo 1 ao permitir que a média $\mu_i$ varie de peixe para peixe em função das suas características (idade, género e relevo):
+
+$$Y_i \mid \mu_i,\, \tau \sim \text{Normal}\!\left(\mu_i,\, \tau^{-1}\right)$$
+$$\mu_i = \beta_0 + \beta_1\, x_{1i} + \beta_2\, x_{2i} + \beta_3\, x_{3i}$$
+
+com distribuições a priori:
+
+$$\beta_j \sim \text{Normal}(0,\, 0.001^{-1}),\; j=0,1,2,3 \qquad \tau \sim \text{Gama}(50,\, 5)$$
+
+As prioris dos $\beta$s são pouco informativas (variância = 1000), deixando os dados determinar os coeficientes. A priori de $\tau$ mantém-se igual ao Modelo 1. 
+
+O modelo em linguagem BUGS é o seguinte:
+
+```
+for (i in 1:n) {
+    Y[i]      ~ dnorm(mu[i], tau)
+    mu[i]    <- beta0 + beta[1]*X[i,1] + beta[2]*X[i,2] + beta[3]*X[i,3]
+    Y.pred[i] ~ dnorm(mu[i], tau)
+    resP[i]  <- (Y[i] - mu[i]) * sqrt(tau)
+  }
+  beta0 ~ dnorm(0, 0.001)
+  for (j in 1:3) {
+    beta[j] ~ dnorm(0, 0.001)
+  }
+  tau   ~ dgamma(50, 5)
+  sigma <- sqrt(1 / tau)
+```
+
+## Ajuste por MCMC
+
+O ajuste do Modelo 2 foi realizado recorrendo ao algoritmo MCMC implementado no JAGS, simulando 3 cadeias independentes com 20 000 iterações cada, aplicando um burn-in de 10 000 iterações para garantir a eliminação da influência dos valores iniciais.
+
+```{r model2-def, echo = FALSE, message = FALSE, warning = FALSE}
+model2 <- function() {
+  for (i in 1:n) {
+    Y[i]      ~ dnorm(mu[i], tau)
+    mu[i]    <- beta0 + beta[1]*X[i,1] + beta[2]*X[i,2] + beta[3]*X[i,3]
+    Y.pred[i] ~ dnorm(mu[i], tau)
+    resP[i]  <- (Y[i] - mu[i]) * sqrt(tau)
+  }
+  beta0 ~ dnorm(0, 0.001)
+  for (j in 1:3) {
+    beta[j] ~ dnorm(0, 0.001)
+  }
+  tau   ~ dgamma(50, 5)
+  sigma <- sqrt(1 / tau)
+}
+
+data2   <- list(Y = dados$y,
+                X = as.matrix(dados[, c("x1","x2","x3")]),
+                n = nrow(dados))
+params2 <- c("beta0","beta","tau","sigma","Y.pred","resP")
+init2   <- function() list("beta0"  = 1,
+                            "beta"   = rep(1, 3),
+                            "tau"    = 1,
+                            "Y.pred" = rep(2, nrow(dados)))
+```
+
+```{r model2-run, cache=TRUE, include = FALSE}
+set.seed(123)
+mod2 <- jags(
+  data               = data2,
+  inits              = init2,
+  parameters.to.save = params2,
+  n.chains           = 3,
+  n.iter             = 20000,
+  n.burnin           = 10000,
+  n.thin             = 1,
+  model.file         = model2
+)
+print(mod2)
+```
+
+Para além dos parâmetros estruturais do modelo ($\beta_0$, $\vec{\beta}$ e $\sigma$), foram simuladas as distribuições preditivas a posteriori das observações ($Y_{\text{pred}, i}$) e os respetivos resíduos padronizados de Pearson ($resP_i$), fundamentais para a posterior validação preditiva do modelo.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, fig.pos = "H", fig.width = 5, fig.height = 3.5}
+sumario2 <- mod2$BUGSoutput$summary
+
+neff_ypred <- sumario2[grep("^Y\\.pred\\[", rownames(sumario2)), "n.eff"]
+neff_resp  <- sumario2[grep("^resP\\[", rownames(sumario2)), "n.eff"]
+
+par(mfrow = c(1,2))
+
+hist(
+  neff_ypred,
+  col = "lightblue",
+  border = "darkblue",
+  main = "Y.pred",
+  xlab = "n.eff"
+)
+
+hist(
+  neff_resp,
+  col = "lightcoral",
+  border = "darkred",
+  main = "resP",
+  xlab = "n.eff"
+)
+
+par(mfrow = c(1,1))
+```
+
+Os histogramas do tamanho efetivo de amostra ($n_{\text{eff}}$) para as previsões ($Y.\text{pred}$) e resíduos ($resP$) revelam valores elevados e bem acima do limite recomendado para uma inferência estável, garantindo baixa autocorrelação e boa convergência. Além disso, o modelo registou $p_V = 10.5$ e DIC = -1.7. A descida acentuada no DIC face ao Modelo 1 (DIC = 5.4) confirma que a inclusão das covariáveis melhorou substancialmente o ajuste. Este comportamento evidencia que a amostragem das trajetórias preditivas individuais ocorreu com baixa autocorrelação intra-cadeia, garantindo uma representação fidedigna da variabilidade a posteriori associada a cada elemento do ecossistema estudado.
+
+## Convergência e resultados
+
+O indicador do tamanho efetivo da amostra (`n.eff`) revela que os parâmetros $\beta_0$, $\beta_1$ e $\sigma$ apresentam uma amostragem ligeiramente mais eficiente (com valores máximos de 30 000) quando comparados com os coeficientes $\beta_2$ e $\beta_3$. Contudo, todos os valores são amplamente satisfatórios para garantir a estabilidade das estimativas. 
+
+```{r model2-conv-table, echo = FALSE, message = FALSE, warning = FALSE}
+res2 <- mod2$BUGSoutput$summary
+p2   <- c("beta0","beta[1]","beta[2]","beta[3]","sigma")
+
+tab2 <- data.frame(
+  Parametro = c("β₀ (Intercept)","β₁ (Idade)","β₂ (Género)","β₃ (Relevo)","σ"),
+  Media     = round(res2[p2, "mean"],  4),
+  DP        = round(res2[p2, "sd"],    4),
+  IC2.5     = round(res2[p2, "2.5%"], 4),
+  IC97.5    = round(res2[p2, "97.5%"],4),
+  Rhat      = round(res2[p2, "Rhat"], 4),
+  neff      = round(res2[p2, "n.eff"],0)
+)
+
+knitr::kable(
+  tab2,
+  caption = "Sumário a posteriori e diagnosticos de convergencia : Modelo 2.",
+  col.names = c(
+    "Parametro",
+    "Media",
+    "DP",
+    "IC 2.5%",
+    "IC 97.5%",
+    "R-hat",
+    "n.eff"
+  )
+)
+
+```
+
+Para validar visualmente o comportamento dinâmico do algoritmo ao longo das iterações, a Figura 10 apresenta as trajetórias temporais das cadeias geradas.
+
+```{r model2-trace, fig.cap="Trace plots das três cadeias MCMC para os coeficientes de regressão e $\\sigma$ — Modelo 2.", echo = FALSE, message = FALSE, warning = FALSE, fig.height=3, fig.width= 7.4, fig.pos = "H"}
+mod2.mcmc <- as.mcmc(mod2)
+color_scheme_set("green")
+mcmc_trace(mod2.mcmc,
+           pars = c("beta0","beta[1]","beta[2]","beta[3]","sigma")) +
+  ggtitle("Trace plots — Modelo 2")
+```
+
+Complementarmente à sobreposição e estabilidade exibidas nos trace plots, as densidades marginais estimadas a posteriori permitem caracterizar a incerteza e a simetria associadas a cada coeficiente do Modelo 2, conforme ilustrado no gráfico de áreas que se segue.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, fig.pos = "H", fig.width = 5, fig.height = 3, fig.cap="Distribuições a posteriori dos parâmetros $\\beta_0$, $\\beta_1$, $\\beta_2$, $\\beta_3$ e $\\sigma$ (Modelo 2)."}
+g1 <- mcmc_areas(mod2.mcmc,
+                 pars = "beta0",
+                 prob = 0.90,
+                 prob_outer = 0.95,
+                 point_est = "mean") +
+      ggtitle(expression(beta[0]))
+
+g2 <- mcmc_areas(mod2.mcmc,
+                 pars = "beta[1]",
+                 prob = 0.90,
+                 prob_outer = 0.95,
+                 point_est = "mean") +
+      ggtitle(expression(beta[1]))
+
+g3 <- mcmc_areas(mod2.mcmc,
+                 pars = "beta[2]",
+                 prob = 0.90,
+                 prob_outer = 0.95,
+                 point_est = "mean") +
+      ggtitle(expression(beta[2]))
+
+g4 <- mcmc_areas(mod2.mcmc,
+                 pars = "beta[3]",
+                 prob = 0.90,
+                 prob_outer = 0.95,
+                 point_est = "mean") +
+      ggtitle(expression(beta[3]))
+
+g5 <- mcmc_areas(mod2.mcmc,
+                 pars = "sigma",
+                 prob = 0.90,
+                 prob_outer = 0.95,
+                 point_est = "mean") +
+      ggtitle(expression(sigma))
+color_scheme_set("green")
+
+grid.arrange(
+  g1, g2, g3, g4, g5,
+  ncol = 3,
+  top = "Distribuições a posteriori — Modelo 2"
+)
+```
+
+A precisão das distribuições estimadas e a robustez dos intervalos de credibilidade dependem criticamente da independência entre as amostras consecutivas de cada cadeia. A Figura 12 detalha a função de autocorrelação para diagnosticar potenciais padrões de dependência serial.
+
+```{r model2-acf, fig.cap="Autocorrelação das simulações MCMC para os coeficientes de regressão — Modelo 2.", echo = FALSE, message = FALSE, warning = FALSE, fig.pos = "H", fig.width = 5, fig.height = 3}
+mcmc_acf(mod2.mcmc,
+         pars = c("beta0","beta[1]","beta[2]","beta[3]","sigma")) +
+  ggtitle("Autocorrelação — Modelo 2") 
+```
+
+A análise conjunta dos diagnósticos confirma que a convergência do modelo é plenamente satisfatória. Todos os valores de $\hat{R}$ situam-se no valor ideal de 1.00, os valores de `n.eff` são robustos em todos os parâmetros e os trace plots exibem uma mistura homogénea das três cadeias independentes. Adicionalmente, a autocorrelação mostra-se negligenciável, decaindo rapidamente para zero logo nas primeiras iterações, o que atesta a eficiência do algoritmo na exploração do espaço paramétrico.
+
+Uma vez validada a convergência e a qualidade do ajuste do Modelo 2, passa-se à interpretação biológica dos coeficientes de regressão. Os boxplots das distribuições a posteriori apresentados abaixo facilitam a avaliação visual direta do impacto e da relevância de cada covariável sobre a variável resposta.
+
+```{r model2-boxplots, fig.cap="Coeficientes — Modelo 2.", echo = FALSE, message = FALSE, warning = FALSE, fig.height=3, fig.pos = "H"}
+
+beta_sim <- mod2$BUGSoutput$sims.list$beta
+par(mfrow = c(1, 3))
+
+boxplot(
+  beta_sim[,1],
+  col = "lightblue",
+  main = expression(beta[1]~"(Idade)"),
+  ylab = "Valor a posteriori",
+  las = 1
+)
+abline(h = 0, lty = 2, col = "red", lwd = 1.5)
+
+boxplot(
+  beta_sim[,2],
+  col = "pink",
+  main = expression(beta[2]~"(Género)"),
+  ylab = "Valor a posteriori",
+  las = 1
+)
+abline(h = 0, lty = 2, col = "red", lwd = 1.5)
+
+boxplot(
+  beta_sim[,3],
+  col = "lightgreen",
+  main = expression(beta[3]~"(Relevo)"),
+  ylab = "Valor a posteriori",
+  las = 1
+)
+abline(h = 0, lty = 2, col = "red", lwd = 1.5)
+
+par(mfrow = c(1,1))
+```
+
+Os boxplots dos coeficientes permitem avaliar visualmente a relevância de cada covariável. $\beta_1$ (Idade) é claramente positivo e a sua caixa não cruza o zero, confirmando que a idade tem um efeito positivo e relevante sobre o comprimento — em concordância com a análise exploratória.
+$\beta_2$ (Género) é negativo e também não cruza o zero, indicando que machos ($x_2=1$) tendem a ser ligeiramente mais curtos que fêmeas.
+$\beta_3$ (Relevo) tem a caixa muito próxima de zero e inclui-o, sugerindo que o relevo não tem efeito relevante sobre o comprimento, tal como antecipado pela análise exploratória.
+
+
+## Predictive checks
+
+```{r model2-ppc-calc, include = FALSE}
+yrep2       <- mod2$BUGSoutput$sims.list$Y.pred
+pred.mean2  <- colMeans(yrep2)
+pred.sd2    <- apply(yrep2, 2, sd)
+MAE2        <- median(abs(dados$y - pred.mean2))
+MAE_scaled2 <- median(abs(dados$y - pred.mean2) / pred.sd2)
+
+pred.q2 <- data.frame(
+  Q2.5  = apply(yrep2, 2, quantile, 0.025),
+  Q25   = apply(yrep2, 2, quantile, 0.25),
+  Q75   = apply(yrep2, 2, quantile, 0.75),
+  Q97.5 = apply(yrep2, 2, quantile, 0.975)
+)
+within50_2 <- mean(dados$y > pred.q2$Q25  & dados$y < pred.q2$Q75)
+within95_2 <- mean(dados$y > pred.q2$Q2.5 & dados$y < pred.q2$Q97.5)
+
+cat("MAE =", round(MAE2, 3), "\n")
+cat("MAE escalado =", round(MAE_scaled2, 3), "\n")
+cat("Cobertura 50% =", round(within50_2, 3), "\n")
+cat("Cobertura 95% =", round(within95_2, 3), "\n")
+```
+
+Para avaliar o comportamento global do Modelo 2, analisamos em paralelo a distribuição preditiva acumulada face à observada, bem como a relação individual entre os valores observados e as respetivas previsões médias da posteriori.
+
+```{r model2-ppc-plot, fig.cap="Posterior predictive check do Modelo 2: distribuição observada vs 50 distribuições preditivas simuladas.", echo = FALSE, message = FALSE, warning = FALSE, fig.pos = "H", fig.width = 4.5, fig.height = 2.6}
+set.seed(123)
+ppc_dens_overlay(dados$y, yrep = yrep2[sample(1:nrow(yrep2), 50), ]) +
+  ggtitle("Posterior Predictive Check — Modelo 2") +
+  labs(x = "Comprimento (m)")
+```
+
+Os posterior predictive checks indicam um bom desempenho preditivo do Modelo 2. O gráfico de densidade sugere uma ligeira melhoria no ajuste preditivo do Modelo 2 face ao Modelo 1, embora as distribuições simuladas continuem a apresentar maior dispersão do que a distribuição observada. Ao analisar os intervalos preditivos a posteriori em função da idade (Figura 15), nota-se que a maioria das observações é adequadamente capturada pelas distribuições preditivas. No entanto, o modelo apresenta uma tendência para produzir intervalos preditivos bastante amplos (refletidos nas barras verticais), sugerindo que o modelo é conservador e tende a sobrestimar a incerteza preditiva em algumas regiões.
+
+```{r model2-intervals, fig.cap="Intervalos preditivos a posteriori de 50% e 95% em função da idade — Modelo 2. Os pontos representam os valores observados.", echo = FALSE, message = FALSE, warning = FALSE,  fig.width = 4, fig.height = 3, fig.pos = "H"}
+ppc_intervals(dados$y, yrep = yrep2, x = dados$x1,
+              prob = 0.5, prob_outer = 0.95) +
+  labs(title = "Intervalos Preditivos vs Observações — Modelo 2",
+       x = "Idade (anos)", y = "Comprimento (m)")+ scale_x_continuous(breaks = seq(0, 35, by = 5))
+```
+
+
+Até aproximadamente os 4 anos, os valores medios preditos não estão muito próximos dos valores reais. A partir daí, a predição é muito próxima.
+
+```{r model2-pred-obs, fig.cap="Valores observados vs médias preditivas a posteriori — Modelo 2. A linha a tracejado representa a bissetriz (predição perfeita).", echo = FALSE, message = FALSE, warning = FALSE, fig.width = 4, fig.height = 2.4, fig.pos = "H"}
+
+ggplot(data.frame(obs = dados$y, pred = pred.mean2),
+       aes(x = obs, y = pred)) +
+  geom_point(color = "darkgreen", size = 2) +
+  geom_abline(slope = 1, intercept = 0,
+              linetype = "dashed", color = "red") +
+  labs(x = "Y observado (m)", y = "Y predito (m)",
+       subtitle = "Modelo 2 — Regressão Linear Múltipla") +
+  theme_bw()
+```
+
+No gráfico de valores observados vs. valores preditos torna-se mais evidente que existe um conjunto de valores (tamanhos menores) para os quais o Modelo 2 não faz uma boa descrição. Para os restantes, o ajuste parece aceitável.
+
+\vspace{0.8cm}
+
+```{r model2-ppc-table, echo = FALSE, message = FALSE, warning = FALSE}
+tab_ppc2 <- data.frame(
+  Metrica = c("MAE","MAE scaled","Within 50%","Within 95%"),
+  Valor   = c(round(MAE2, 4), round(MAE_scaled2, 4),
+              paste0(round(100*within50_2, 1), "%"),
+              paste0(round(100*within95_2, 1), "%"))
+)
+
+knitr::kable(
+  tab_ppc2,
+  caption = "Métricas de predictive check : Modelo 2.",
+  col.names = c("Métrica", "Valor"),
+  align = "lc"
+)
+```
+
+O gráfico de valores observados vs médias preditivas (Figura 15) revela pontos significativamente mais próximos da bissetriz (predição perfeita). Esta melhoria clara face ao Modelo 1 é confirmada pelas métricas da Tabela 9:
+
+- MAE (0.0962 m): O erro absoluto médio é de cerca de 0.10 metros. Como a variável resposta $y$ varia aproximadamente entre 1.7 m e 2.8 m, este erro é relativamente pequeno.
+
+- MAE escalado (0.3272): Este valor indica que, em média, o erro observado corresponde a cerca de um terço do desvio-padrão preditivo. Por ser bastante inferior a 1, significa que os erros observados são pequenos quando comparados com a incerteza que o modelo atribui às previsões.
+
+- Cobertura de 50% (82.2%) e 95% (97.8%): Se o modelo estivesse perfeitamente calibrado, os intervalos centrais deveriam conter valores próximos das suas coberturas nominais (50% e 95%). Como as coberturas empíricas obtidas excedem esses valores teóricos (82.2% vs 50% e 97.8% vs 95%), confirma-se que os intervalos preditivos estão demasiado largos, indicando uma ligeira sobrestimação da incerteza por parte do modelo.
+
+\vspace{0.8cm}
+
+Em suma, estes resultados confirmam que a inclusão das covariáveis melhora substancialmente o poder preditivo do modelo, garantindo previsões realistas, ainda que ligeiramente conservadoras quanto à sua precisão.
+
+\vspace{0.8cm}
+
+## Probabilidade posterior de $\mu < 2$
+
+De forma a explorar o Modelo 2, deu-se como objetivo estimar o comprimento esperado ($\mu$) para um "peixe típico" da nossa amostra, ou seja, um indivíduo que apresente os valores médios de todas as covariáveis consideradas no Modelo 2.
+
+```{r model2-prob,include=FALSE}
+x1.mean <- mean(dados$x1)
+x2.mean <- mean(dados$x2)
+x3.mean <- mean(dados$x3)
+
+tab_medias <- data.frame(
+  Covar  = c("Idade (x1)","Género (x2)","Relevo (x3)"),
+  Media  = c(round(x1.mean, 2), round(x2.mean, 2), round(x3.mean, 2))
+)
+
+tab_medias
+```
+
+Para os valores médios das covariáveis, simula-se a distribuição a posteriori do comprimento esperado ($\mu_i$) e calcula-se a probabilidade de este ser inferior a 2 metros.
+
+```{r model2-mu-calc, include = FALSE}
+beta0_sim <- mod2$BUGSoutput$sims.list$beta0
+beta_sim <- mod2$BUGSoutput$sims.list$beta
+mu.medio    <- beta0_sim +
+               beta_sim[,1] * x1.mean +
+               beta_sim[,2] * x2.mean +
+               beta_sim[,3] * x3.mean
+
+prob_mu_lt2 <- mean(mu.medio < 2)
+
+if (prob_mu_lt2 > 0.5) {
+  texto_analise <- "A maior parte da distribuição a posteriori situa-se abaixo de 2 metros, indicando que, para um peixe típico desta amostra (com covariáveis nos seus valores médios), existe evidência substancial de que o comprimento esperado é inferior a 2 metros."
+} else {
+  texto_analise <- "A maior parte da distribuição a posteriori situa-se acima de 2 metros, pelo que existe evidência de que o comprimento esperado de um peixe típico desta população supera os 2 metros, e à vista da figura, mais concretamente acima de 2.2 metros."
+}
+```
+
+```{r model2-mu-plot, fig.cap="Distribuição a posteriori de µ para os valores médios das covariáveis (Modelo 2). A linha a tracejado assinala o limiar de 2 metros.", echo = FALSE, message = FALSE, warning = FALSE, fig.width = 4, fig.height = 3, fig.pos = "H"}
+ggplot(data.frame(mu = mu.medio), aes(x = mu)) +
+  geom_density(fill = "lightblue", alpha = 0.6, color = "navy") +
+  geom_vline(xintercept = 2, linetype = "dashed",
+             color = "red", linewidth = 1) +
+  annotate("text", x = 2.01, y = max(density(mu.medio)$y) * 0.7,
+           label = paste0("P(mu < 2) = ", round(prob_mu_lt2, 3)),
+           hjust = 0, color = "red", size = 3.5) +
+  labs(x = expression(mu), y = "Densidade",
+       subtitle = "Modelo 2 — valores médios das covariáveis") +
+  theme_bw()
+```
+
+
+Com base nos valores médios observados na amostra, nomeadamente uma idade de `r round(x1.mean, 1)` anos, uma proporção de `r round(x2.mean, 2)` de machos (Género) e um Relevo médio de `r round(x3.mean, 1)`, a probabilidade de o comprimento esperado ($\mu$) ser inferior a 2 metros fixa-se em `r round(prob_mu_lt2, 3)`. `r texto_analise` Este resultado deve ser interpretado no contexto das covariáveis médias da amostra, que incluem uma idade média de `r round(x1.mean, 1)` anos e uma maioria de machos.
+
+---
+
+# Modelo 3 — Modelo com Efeito Aleatório
+
+## Especificação do modelo
+
+O Modelo 3 é uma alternativa ao Modelo 2: em vez de incluir covariáveis observadas, incorpora um efeito aleatório individual $\nu_i$ para cada peixe, capturando variabilidade não explicada por características mensuráveis. É uma abordagem útil quando existe heterogeneidade individual que não é completamente explicada pelas covariáveis disponíveis.
+
+$$Y_i \mid \mu_i,\, \tau \sim \text{Normal}\!\left(\mu_i,\, \tau^{-1}\right)$$
+$$\mu_i = \beta_0 + \nu_i, \qquad \nu_i \sim \text{Normal}\!\left(0,\, \tau_\nu^{-1}\right)$$
+
+com distribuições a priori:
+
+$$\beta_0 \sim \text{Normal}(0,\, 0.001^{-1}) \qquad \tau \sim \text{Gama}(50,\, 5) \qquad \tau_\nu \sim \text{Gama}(1,\, 0.01)$$
+
+A priori de $\tau_\nu$ é pouco informativa, deixando os dados determinar a magnitude da variabilidade individual.
+Neste caso, o beta0 representa a média global da população, $\nu_i$ são os desvios específicos de cada observação relativamente à média global; $\tau^{-1}$ (=$\sigma^2$) mede a variabilidade residual, e $\tau_\nu ^-1$ (=$\sigma_\nu ^2$) mede a heterogeneidade entre observações.
+
+
+O modelo em linguagem BUGS é o seguinte:
+
+```
+for (i in 1:n) {
+    Y[i]      ~ dnorm(mu[i], tau)
+    mu[i]     <- beta0 + nu[i]
+    nu[i]     ~ dnorm(0, tau.nu)
+    Y.pred[i] ~ dnorm(mu[i], tau)
+}
+beta0    ~ dnorm(0, 0.001)
+tau      ~ dgamma(50, 5)
+tau.nu   ~ dgamma(1, 0.01)
+sigma    <- sqrt(1/tau)
+sigma.nu <- sqrt(1/tau.nu)
+```
+
+## Ajuste por MCMC
+
+O ajuste do Modelo 3 foi realizado recorrendo ao algoritmo MCMC implementado no JAGS, simulando 3 cadeias independentes com 20 000 iterações cada, aplicando um burn-in de 10 000 iterações para garantir a eliminação da influência dos valores iniciais.
+
+
+```{r model3-def, echo = FALSE, message = FALSE, warning = FALSE}
+model3 <- function() {
+  for (i in 1:n) {
+    Y[i]      ~ dnorm(mu[i], tau)
+    mu[i]    <- beta0 + nu[i]
+    nu[i]     ~ dnorm(0, tau.nu)
+    Y.pred[i] ~ dnorm(mu[i], tau)
+  }
+  beta0    ~ dnorm(0, 0.001)
+  tau      ~ dgamma(50, 5)
+  tau.nu   ~ dgamma(1, 0.01)
+  sigma    <- sqrt(1 / tau)
+  sigma.nu <- sqrt(1 / tau.nu)
+}
+
+data3   <- list(Y = dados$y, n = nrow(dados))
+params3 <- c("beta0","tau","tau.nu","sigma","sigma.nu","nu","Y.pred")
+init3   <- function() list("beta0" = 1, "tau" = 1, "tau.nu" = 1)
+```
+
+```{r model3-run, cache=TRUE, include = FALSE}
+set.seed(123)
+mod3 <- jags(
+  data               = data3,
+  inits              = init3,
+  parameters.to.save = params3,
+  n.chains           = 3,
+  n.iter             = 20000,
+  n.burnin           = 10000,
+  n.thin             = 1,
+  model.file         = model3
+)
+print(mod3)
+```
+
+```{r neff-mod3, echo = FALSE, message = FALSE, warning = FALSE, fig.width = 4, fig.height = 3, fig.pos = "H", fig.cap="Distribuição dos valores de n.eff para todos os parâmetros do Modelo 3, incluindo os Y.pred individuais."}
+neff <- mod3$BUGSoutput$summary[, "n.eff"]
+hist(
+  neff,
+  col    = "red",
+  border = "darkred",
+  main   = "Distribuição dos n.eff do Modelo 3\n(incluindo Y.pred)",
+  xlab   = "n.eff"
+)
+```
+
+O histograma do tamanho efetivo da amostra ($n_{\text{eff}}$) para o Modelo 3 reflete a estabilidade da amostragem de todo o conjunto de parâmetros simulados, incluindo os efeitos aleatórios individuais ($\nu_1, \dots, \nu_{45}$). A elevada concentração de frequências acima de 25 000 confirma que, apesar do elevado número de variáveis, as cadeias exploraram o espaço paramétrico de forma extremamente eficiente, garantindo uma inferência robusta e com baixa autocorrelação para a quase totalidade das componentes.
+
+No que concerne à avaliação do ajuste global, o modelo registou um número efetivo de parâmetros $p_V = 9.0$ e um $\text{DIC} = 10.5$. O aumento acentuado do DIC face ao Modelo 1 ($\text{DIC} = 5.4$) e ao Modelo 2 ($\text{DIC} = -1.7$) demonstra que a introdução de um efeito aleatório para cada peixe penalizou excessivamente o modelo. Sem o suporte explicativo de covariáveis estruturais (como a idade ou o género), a modelação da heterogeneidade individual isolada revelou-se ineficiente, gerando um pior compromisso entre a qualidade do ajuste e a parcimónia do modelo.
+
+\newpage
+
+## Convergência e resultados
+
+```{r model3-conv-table, echo = FALSE, message = FALSE, warning = FALSE}
+res3 <- mod3$BUGSoutput$summary
+p3   <- c("beta0","sigma","sigma.nu","tau","tau.nu")
+
+tab3 <- data.frame(
+  Parametro = c("$\\beta_0$",
+                "$\\sigma$ (erro)",
+                "$\\sigma_\\nu$ (ef. aleatório)",
+                "$\\tau$ (erro)",
+                "$\\tau_\\nu$ (ef. aleatório)"),
+  Media  = round(res3[p3, "mean"],  4),
+  DP     = round(res3[p3, "sd"],    4),
+  IC2.5  = round(res3[p3, "2.5%"], 4),
+  IC97.5 = round(res3[p3, "97.5%"],4),
+  Rhat   = round(res3[p3, "Rhat"], 4),
+  neff   = round(res3[p3, "n.eff"],0)
+)
+
+kable(tab3,
+      escape    = FALSE,
+      caption   = "Sumário a posteriori e diagnósticos de convergência dos parâmetros globais — Modelo 3.",
+      col.names = c("Parâmetro","Média","D.P.","IC 2.5%","IC 97.5%","R-hat","n.eff"),
+      align     = "lcccccc")
+```
+
+Os indicadores estatísticos evidenciam um processo de amostragem altamente eficiente. Todos os valores do fator de redução diagnóstica ($\hat{R}$) situam-se no valor ideal de 1.00 (ou muito próximos, como 1.001), indicando que as três cadeias independentes convergiram para a mesma região estacionária. Adicionalmente, o tamanho efetivo da amostra (n.eff) atinge o máximo de $`r res3["beta0", "n.eff"]`$ iterações independentes para o intercepto ($\beta_0$),
+sendo que os parâmetros dos efeitos aleatórios ($\sigma_\nu$, $\tau_\nu$) apresentam
+valores mais modestos ($`r res3["sigma.nu", "n.eff"]`$ e $`r res3["tau.nu", "n.eff"]`$,
+respetivamente), ainda assim suficientes para inferência fiável.
+
+Para validar visualmente este comportamento dinâmico e garantir a eliminação da influência dos valores iniciais, a Figura 18 apresenta as trajetórias temporais (trace plots) das cadeias geradas para os parâmetros estruturais.
+
+```{r model3-trace, fig.cap="Trace plots das três cadeias MCMC para os parâmetros globais do Modelo 3.", echo = FALSE, message = FALSE, warning = FALSE, fig.width = 8, fig.height = 3, fig.pos = "H"}
+
+mod3.mcmc <- as.mcmc(mod3)
+color_scheme_set("red")
+mcmc_trace(mod3.mcmc,
+           pars = c("beta0","sigma","sigma.nu")) +
+  ggtitle("Trace plots — Modelo 3")
+```
+
+A sobreposição perfeita e a mistura homogénea das três cadeias visíveis na Figura 18 confirmam visualmente a estabilidade do algoritmo MCMC. Complementarmente a este diagnóstico, as densidades marginais estimadas a posteriori permitem caracterizar a incerteza e a simetria associadas a cada parâmetro global, conforme ilustrado no gráfico de áreas que se segue.
+
+```{r , echo = FALSE, message = FALSE, warning = FALSE, fig.width = 6, fig.height = 3, fig.pos = "H", fig.cap="Distribuições a posteriori dos parâmetros $\\beta_0$, $\\sigma$ e $\\sigma_\\nu$ (Modelo 3). A linha vertical indica a média a posteriori; a região sombreada escura corresponde ao intervalo de 90\\% e a clara ao de 95\\%."}
+p1 <- mcmc_areas(
+  mod3.mcmc,
+  pars = "beta0",
+  prob = 0.90,
+  prob_outer = 0.95,
+  point_est = "mean"
+) +
+  ggtitle(expression(beta[0]))
+
+p2 <- mcmc_areas(
+  mod3.mcmc,
+  pars = "sigma",
+  prob = 0.90,
+  prob_outer = 0.95,
+  point_est = "mean"
+) +
+  ggtitle(expression(sigma))
+
+p3 <- mcmc_areas(
+  mod3.mcmc,
+  pars = "sigma.nu",
+  prob = 0.90,
+  prob_outer = 0.95,
+  point_est = "mean"
+) +
+  ggtitle(expression(sigma[nu]))
+
+grid.arrange(p1, p2, p3, ncol = 3)
+
+```
+
+A análise das distribuições a posteriori revela que o desvio-padrão dos efeitos aleatórios individuais ($\sigma_\nu$) apresenta uma média a posteriori de 0.0868. Quando comparado com o desvio-padrão do erro residual ($\sigma = 0.2949$), este valor sugere que a variabilidade individual estimada de forma livre pelo modelo é relativamente modesta face ao ruído não explicado.
+
+Contudo, a precisão destas formas distributivas depende criticamente da independência entre amostras sucessivas. A Figura 20 detalha as funções de autocorrelação para avaliar potenciais dependências seriais intra-cadeia.
+
+```{r model3-acf, fig.cap="Autocorrelação das simulações MCMC para os parâmetros globais — Modelo 3.", echo = FALSE, message = FALSE, warning = FALSE, fig.width = 6, fig.height = 3, fig.pos = "H"}
+mcmc_acf(mod3.mcmc, pars = c("beta0","sigma","sigma.nu")) +
+  ggtitle("Autocorrelação — Modelo 3")
+```
+
+A convergência é satisfatória para os parâmetros globais, com $\hat{R}$ iguais a 1.00 e `n.eff` elevados. Os trace plots mostram boa mistura das cadeias. A distribuição a posteriori de $\sigma_\nu$ (desvio-padrão dos efeitos aleatórios) reflete a magnitude da variabilidade individual estimada pelo modelo: se $\sigma_\nu$ for grande relativamente a $\sigma$, isso indica que existe variabilidade individual substancial nos dados que o modelo está a capturar.
+
+Em termos de autocorrelação, verifica-se que esta decai de forma quase instantânea para zero logo nas primeiras iterações no caso de $\beta_0$ e $\sigma$, demonstrando uma exploração rápida e eficiente do espaço de estados. Contudo, para o parâmetro $\sigma_\nu$, o decréscimo ocorre de forma ligeiramente mais lenta (embora estabilize dentro das bandas de confiança perto da quinta iteração), um comportamento típico em parâmetros que dependem da variabilidade comum de variáveis latentes.
+
+Uma vez validada a robustez dos parâmetros globais, importa analisar individualmente o comportamento dos desvios de cada peixe face à tendência central. O gráfico seguinte ilustra as estimativas pontuais e os respetivos intervalos de credibilidade a 95% para os efeitos aleatórios ($\nu_i$) estimados.
+
+```{r model3-nu, fig.cap="Efeitos aleatórios individuais ($\nu_i$) estimados — Modelo 3, com intervalos de credibilidade de 95\\%. A linha a tracejado representa $\nu_i = 0$.", echo = FALSE, message = FALSE, warning = FALSE, fig.width = 4, fig.height = 3, fig.pos = "H"}
+
+nu_means <- colMeans(mod3$BUGSoutput$sims.list$nu)
+nu_q025  <- apply(mod3$BUGSoutput$sims.list$nu, 2, quantile, 0.025)
+nu_q975  <- apply(mod3$BUGSoutput$sims.list$nu, 2, quantile, 0.975)
+
+nu_df <- data.frame(
+  peixe = 1:45,
+  nu    = nu_means,
+  lower = nu_q025,
+  upper = nu_q975
+)
+
+ggplot(nu_df, aes(x = reorder(factor(peixe), nu), y = nu)) +
+  geom_point(color = "red", size = 2) +
+  geom_errorbar(aes(ymin = lower, ymax = upper),
+                width = 0.4, color = "red", alpha = 0.5) +
+  geom_hline(yintercept = 0, linetype = "dashed", linewidth = 0.8) +
+  labs(x = "Peixe (ordenado por νᵢ)", y = expression(nu[i]),
+       subtitle = "Modelo 3 — efeitos aleatórios individuais") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+```
+
+As médias posteriores dos efeitos aleatórios variam apenas entre -0.05 e 0.05 (pontos vermelhos), exibindo intervalos de credibilidade de 95% bastante amplos. O facto de todos os intervalos cruzarem a linha de referência ($\nu_i = 0$) indica que não existem evidências estatísticas de diferenças individuais marcadas entre os peixes estudados. Embora as estimativas médias dos efeitos aleatórios apresentem alguma variabilidade, esta variação é residual quando comparada com a elevada incerteza associada a cada estimativa individual, cujos intervalos são várias vezes superiores às próprias médias a posteriori. Em conjunto, estes resultados demonstram que os desvios individuais relativamente à média global são modestos e que o modelo não identifica elementos com um comportamento significativamente distinto de zero.
+
+Contudo, como os efeitos aleatórios $\nu_i$ não são explicados por covariáveis observadas, o modelo 3 fornece uma menor capacidade interpretativa relativamente aos mecanismos biológicos que geram a variabilidade observada. Além disso, a sua capacidade de generalização é mais limitada do que a do Modelo 2, uma vez que as diferenças entre indivíduos são captadas por efeitos específicos de cada observação e não por características observáveis que possam ser utilizadas para realizar  previsões ou extrapolações para novos indivíduos fora da amostra atual.
+
+## Predictive checks
+
+Para aferir a capacidade do Modelo 3 em replicar o padrão dos dados recolhidos, procedeu-se à validação preditiva a posteriori. O primeiro bloco de análise quantifica a proximidade entre os valores observados e as respetivas simulações através de métricas de erro e taxas de cobertura intervalar, cujos resultados estruturados se encontram na Tabela 11.
+
+```{r model3-ppc-calc, include= FALSE}
+yrep3       <- mod3$BUGSoutput$sims.list$Y.pred
+pred.mean3  <- colMeans(yrep3)
+pred.sd3    <- apply(yrep3, 2, sd)
+MAE3        <- median(abs(dados$y - pred.mean3))
+MAE_scaled3 <- median(abs(dados$y - pred.mean3) / pred.sd3)
+
+pred.q3 <- data.frame(
+  Q2.5  = apply(yrep3, 2, quantile, 0.025),
+  Q25   = apply(yrep3, 2, quantile, 0.25),
+  Q75   = apply(yrep3, 2, quantile, 0.75),
+  Q97.5 = apply(yrep3, 2, quantile, 0.975)
+)
+within50_3 <- mean(dados$y > pred.q3$Q25  & dados$y < pred.q3$Q75)
+within95_3 <- mean(dados$y > pred.q3$Q2.5 & dados$y < pred.q3$Q97.5)
+
+cat("MAE =", round(MAE3, 3), "\n")
+cat("MAE escalado =", round(MAE_scaled3, 3), "\n")
+cat("Cobertura 50% =", round(within50_3, 3), "\n")
+cat("Cobertura 95% =", round(within95_3, 3), "\n")
+```
+
+```{r model3-ppc-table, echo = FALSE, message = FALSE, warning = FALSE, fig.width = 4, fig.height = 3, fig.pos = "H"}
+tab_ppc3 <- data.frame(
+  Metrica = c("MAE","MAE scaled","Within 50%","Within 95%"),
+  Valor   = c(round(MAE3, 4), round(MAE_scaled3, 4),
+              paste0(round(100*within50_3, 1), "%"),
+              paste0(round(100*within95_3, 1), "%"))
+)
+
+kable(tab_ppc3,
+      caption   = "Métricas de predictive check — Modelo 3.",
+      col.names = c("Métrica","Valor"),
+      align     = "lc")
+```
+
+A leitura dos indicadores da Tabela 11 permite traçar o perfil de erro do modelo:
+
+- MAE (0.1089): O erro absoluto mediano apresenta um valor reduzido, evidenciando que as previsões pontuais do modelo se situam, em média, bastante próximas dos comprimentos reais observados.
+
+- MAE Escalado (0.3508): O erro absoluto médio representa cerca de 35% do desvio-padrão da variável resposta, indicando que as previsões pontuais do modelo se situam a uma distância moderada dos valores observados em termos relativos.
+
+- Cobertura de 50% (75.6%): O intervalo preditivo central (compreendido entre os percentis 25% e 75%) retém aproximadamente 76% das observações. Este registo situa-se francamente acima do valor nominal esperado (50%).
+
+- Cobertura de 95% (97.8%): O intervalo preditivo abrangente de 95% retém cerca de 98% dos dados experimentais, ultrapassando ligeiramente a meta teórica.
+
+Esta tendência de superação nos valores nominais de cobertura (especialmente nos 50%) constitui um indicador clássico de sobreajuste ou de conservadorismo na modelação, onde os intervalos preditivos se tornam excessivamente largos para garantir a inclusão dos dados.
+
+Para complementar esta perspetiva numérica com uma validação visual do ajuste das distribuições, a Figura 22 ilustra a sobreposição da densidade observada contra várias trajetórias simuladas.
+
+```{r model3-ppc-plot, fig.cap="Posterior predictive check do Modelo 3: distribuição observada vs 50 distribuições preditivas simuladas.", echo = FALSE, message = FALSE, warning = FALSE, fig.width = 4, fig.height = 3, fig.pos = "H"}
+set.seed(123)
+ppc_dens_overlay(dados$y, yrep = yrep3[sample(1:nrow(yrep3), 50), ]) +
+  ggtitle("Posterior Predictive Check — Modelo 3") +
+  labs(x = "Comprimento (m)")
+```
+
+O posterior predictive check da Figura 22 revela que as distribuições simuladas ($y_{rep}$)
+se centram adequadamente em torno da distribuição observada ($y$), com o pico da densidade
+observada (~2.5 m) bem capturado pela generalidade das réplicas. Contudo, as distribuições
+simuladas apresentam uma dispersão consideravelmente superior à observada, gerando caudas
+mais pesadas tanto à esquerda (~1.5 m) como à direita (~3.0 m). Este padrão é consistente
+com o fenómeno de *shrinkage* identificado na Figura 22: o modelo subestima a variabilidade
+individual, produzindo previsões excessivamente centradas na média global e incapazes de
+reproduzir fielmente os valores extremos da amostra.
+
+```{r model3-pred-obs, fig.cap="Valores observados vs médias preditivas a posteriori — Modelo 3. A linha tracejada representa a prefdição perfeita.", echo = FALSE, message = FALSE, warning = FALSE, fig.width = 4, fig.height = 3, fig.pos = "H"}
+ggplot(data.frame(obs = dados$y, pred = pred.mean3),
+       aes(x = obs, y = pred)) +
+  geom_point(color = "red", size = 2) +
+  geom_abline(slope = 1, intercept = 0,
+              linetype = "dashed", color = "black") +
+  labs(x = "Y observado (m)", y = "Y predito (m)",
+       subtitle = "Modelo 3 — Efeito Aleatório") +
+  theme_bw()
+```
+
+
+Observa-se que as médias preditivas apresentam uma variabilidade substancialmente inferior à dos valores observados (entre 2.32 m e 2.42 m em comparação com 1.6 m até 2.8 m), concentrando-se num intervalo estreito. Este comportamento sugere que as previsões estão parcialmente enviasadas para a média global, um comportamento expectável quando o modelo tenta acomodar os desvios individuais de forma puramente estocástica, sem o auxílio de covariáveis explicativas.
+
+Como consequência, o Modelo 3 falha em reproduzir a verdadeira dispersão dos dados, subestimando severamente os comprimentos nos extremos da amostra e demonstrando fragilidade na sua robustez preditiva.
+
+---
+
+# Resultados e Comparações
+
+Dos três modelos ajustados, o **Modelo 2 — Regressão Linear Múltipla** é o mais adequado para modelar o comprimento desta espécie de peixes, pelas seguintes razões:
+
+1. **DIC mais baixo**: o DIC penaliza a complexidade do modelo. Um DIC menor no Modelo 2 indica que o ganho em ajuste face ao Modelo 1 justifica os parâmetros adicionais, e que o Modelo 3 não compensa a sua maior complexidade.
+
+2. **Melhor ajuste preditivo que o Modelo 1**: incorporar as covariáveis (Idade, Género, Relevo) melhora claramente o MAE, o MAE scaled e a proporção de observações dentro dos intervalos preditivos, confirmando que as covariáveis têm poder explicativo real.
+
+3. **Menor risco de sobreajustamento que o Modelo 3**: o Modelo 3 estima um efeito aleatório por cada um dos 45 peixes (45 parâmetros extras para 45 observações), o que é problemático numa amostra de dimensão reduzida. O Modelo 2 é mais parcimonioso e generalizável a novos peixes.
+
+4. **Interpretabilidade biológica**: os coeficientes $\beta_1$, $\beta_2$, $\beta_3$ têm interpretação direta e contextualmente relevante. A relação positiva entre comprimento e idade é biologicamente esperada em modelos de crescimento, e o efeito do género é quantificável. O Modelo 3, ao não incluir covariáveis, não permite responder à questão de quais as características que influenciam o comprimento.
+
+Do ponto de vista prático e ecológico, o Modelo 2 é o único que permite responder diretamente às perguntas de investigação. Os coeficientes $\beta_1, \beta_2$ e $\beta_3$ oferecem uma interpretação direta: a relação positiva entre o comprimento e a idade valida o padrão de crescimento esperado na literatura biológica, e o efeito do género permite quantificar o dimorfismo sexual da espécie. Pelo contrário, o Modelo 1 (demasiado simplista) e o Modelo 3 (focado no erro idiossincrático por peixe) falham em isolar o impacto destas características estruturais.
+
+A avaliação estatística dos modelos ajustados para estimar o comprimento da espécie de peixe em estudo foi dividida em duas etapas fundamentais: o diagnóstico de estabilidade numérica dos algoritmos e a validação do desempenho preditivo em simbiose com a teoria ecológica.
+
+## Diagnóstico de Convergência e Eficiência do MCMC
+
+```{r comparacao-mcmc, echo = FALSE, message = FALSE, warning = FALSE}
+
+tab_mcmc <- data.frame(
+
+  Metrica = c("Maior Rhat"),
+
+  Modelo1 = round(max(mod1$BUGSoutput$summary[, "Rhat"], na.rm = TRUE), 4),
+
+  Modelo2 = round(max(mod2$BUGSoutput$summary[, "Rhat"], na.rm = TRUE), 4),
+
+  Modelo3 = round(max(mod3$BUGSoutput$summary[, "Rhat"], na.rm = TRUE), 4)
+
+)
+
+kable(
+  tab_mcmc,
+  caption = "Comparação dos diagnósticos de convergência."
+)
+
+```
+
+Como se observa na Table 13, os valores máximos do diagnóstico $\hat{R}$ aproximam-se idealmente da unidade em todas as configurações, com o teto máximo fixado em $1.0015$ no Modelo 3. Este comportamento valida empiricamente que as cadeias MCMC misturaram de forma ótima e convergiram com sucesso para as distribuições estacionárias de interesse.
+
+```{r comparacao-neff, echo = FALSE, message = FALSE, warning = FALSE}
+
+
+neff_m1 <- mod1$BUGSoutput$summary[
+  grep("^Y\\.pred\\[", rownames(mod1$BUGSoutput$summary)),
+  "n.eff"
+]
+
+neff_m2 <- mod2$BUGSoutput$summary[
+  grep("^Y\\.pred\\[", rownames(mod2$BUGSoutput$summary)),
+  "n.eff"
+]
+
+neff_m3 <- mod3$BUGSoutput$summary[
+  grep("^Y\\.pred\\[", rownames(mod3$BUGSoutput$summary)),
+  "n.eff"
+]
+
+tab_neff_comp <- data.frame(
+  Estatistica = c("Média", "Mediana", "Mínimo", "Máximo"),
+  Modelo1 = round(c(mean(neff_m1), median(neff_m1),
+                    min(neff_m1), max(neff_m1)),0),
+  Modelo2 = round(c(mean(neff_m2), median(neff_m2),
+                    min(neff_m2), max(neff_m2)),0),
+  Modelo3 = round(c(mean(neff_m3), median(neff_m3),
+                    min(neff_m3), max(neff_m3)),0)
+)
+
+kable(
+  tab_neff_comp,
+  caption = "Comparação dos effective sample sizes (n.eff) das previsões Y.pred."
+)
+
+```
+
+No que concerne à eficiência amostral (Table 14), as distribuições das estatísticas de $n_{\text{eff}}$ mantêm-se em patamares elevados para as previsões $Y_{\text{pred}}$. As medianas coincidem com o limite máximo de amostras planeado ($30\,000$), traduzindo uma total ausência de autocorrelação serial na maioria dos caminhos estocásticos.As médias populacionais fixaram-se entre os $25\,000$ e os $27\,000$ valores equivalentes independentes, e mesmo as caudas inferiores (valores mínimos), embora mais baixas devido ao ruído intrínseco, mantiveram-se acima do limiar estatisticamente confortável ($\ge 6100$). A uniformidade destes diagnósticos confirma uma amostragem eficiente e equitativa em todos os cenários operados.
+
+## Comparação Global e Seleção do Modelo
+
+Superada a fase de validação numérica, procedeu-se à comparação do erro absoluto preditivo médio (MAE), do MAE escalado, das coberturas empíricas dos intervalos de credibilidade (a 50% e 95%) e do critério de informação DIC (Deviance Information Criterion).
+
+```{r Results, echo = FALSE, message = FALSE, warning = FALSE}
+tab_comp <- data.frame(
+
+  Metrica = c(
+    "DIC",
+    "MAE",
+    "MAE escalado",
+    "Cobertura 50%",
+    "Cobertura 95%"
+  ),
+
+  Modelo1 = c(
+    sprintf("%.2f", mod1$BUGSoutput$DIC),
+    sprintf("%.4f", MAE1),
+    sprintf("%.4f", MAE_scaled1),
+    sprintf("%.1f", 100 * within50_1),
+    sprintf("%.1f", 100 * within95_1)
+  ),
+
+  Modelo2 = c(
+    sprintf("%.2f", mod2$BUGSoutput$DIC),
+    sprintf("%.4f", MAE2),
+    sprintf("%.4f", MAE_scaled2),
+    sprintf("%.1f", 100 * within50_2),
+    sprintf("%.1f", 100 * within95_2)
+  ),
+
+  Modelo3 = c(
+    sprintf("%.2f", mod3$BUGSoutput$DIC),
+    sprintf("%.4f", MAE3),
+    sprintf("%.4f", MAE_scaled3),
+    sprintf("%.1f", 100 * within50_3),
+    sprintf("%.1f", 100 * within95_3)
+  )
+
+)
+
+kable(
+  tab_comp,
+  caption = paste(
+    "Comparação global dos três modelos.",
+    "DIC: Deviance Information Criterion (valores menores indicam melhor compromisso entre ajustamento e complexidade).",
+    "As coberturas são apresentadas em percentagem (%)."
+  ),
+  col.names = c("Métrica", "Modelo 1", "Modelo 2", "Modelo 3"),
+  align = c("l", "c", "c", "c")
+)
+```
+
+Com base na síntese apresentada na Table 12, o Modelo 2 — Regressão Linear Múltipla destaca-se como a formulação metodologicamente ideal e biologicamente coerente para descrever a variação do comprimento da espécie animal, fundamentando-se nas seguintes premissas críticas:
+
+- Compromisso de Ajuste e Parcimónia (DIC): O DIC pune severamente modelos sobreparametrizados. O Modelo 2 registou o menor score absoluto ($-1.71$), revelando-se francamente superior ao Modelo 1 ($5.42$) e ao Modelo 3 ($10.49$). Este comportamento indica estatisticamente que o ganho informacional obtido pela inclusão de preditores no Modelo 2 justifica a perda de graus de liberdade, enquanto o artifício estrutural do Modelo 3 satura a formulação sem acrescentar valor equivalente.
+
+- Superioridade do Ajuste Preditivo face ao Baseline: Ao incorporar explicitamente variáveis ambientais e físicas (Idade, Género, Relevo), o Modelo 2 gerou reduções significativas no erro absoluto de previsão (o MAE baixou de $0.1202$ para $0.0962$ e o MAE escalado contraiu de $0.4016$ para $0.3272$). Nota-se ainda um ganho qualitativo na calibração da cobertura a 50%, que escalou de $64.4\%$ para $82.2\%$, atestando o real poder preditivo destas covariáveis.
+
+- Controlo do Risco de Sobreajustamento (Overfitting): O Modelo 3 calcula uma estimativa individualizada para cada um dos peixes analisados ($45$ parâmetros para $45$ observações), o que constitui uma abordagem altamente instável para amostras pequenas. O Modelo 2 assume um comportamento parcimonioso, filtrando apenas o sinal estrutural sistemático, o que maximiza o seu potencial de generalização para espécimes não observados da mesma população.
+
+- Interpretabilidade Ecológica: Sob o ponto de vista prático e científico, o Modelo 2 é o único formato capaz de dar resposta direta aos objetivos de investigação. Os coeficientes associados ($\beta_1$, $\beta_2$, $\beta_3$) possuem leitura imediata: a relação positiva estimada entre o comprimento e a idade valida o padrão alométrico de crescimento descrito na literatura, permitindo simultaneamente isolar e quantificar o dimorfismo sexual da espécie (efeito do género). O Modelo 1 descura esta complexidade biológica por omissão e o Modelo 3 foca-se na variação puramente residual/idiossincrática, falhando em decifrar as forças motrizes que influenciam o desenvolvimento corporal destes peixes.
+
+\newpage
+
+# Conclusão
+
+O presente trabalho teve como objetivo modelar o comprimento de uma espécie de peixes sob o paradigma Bayesiano, avaliando o impacto de fatores biológicos (Idade e Género) e ambientais (Relevo) no seu desenvolvimento corporal. A transição integrada entre a Análise Exploratória de Dados (EDA) e a modelação avançada via MCMC permitiu extrair inferências ecológicas robustas, salvaguardando a integridade estatística do estudo.
+
+A etapa exploratória preliminar revelou-se crucial ao expor aspetos demográficos e estruturais da amostra ($n = 45$) que ditaram a necessidade de uma abordagem multivariada. Detetou-se um desequilíbrio amostral acentuado, com predominância de machos ($68.9\%$) concentrados em faixas etárias mais jovens, enquanto as fêmeas amostradas se caracterizaram por idades tendencialmente avançadas. Adicionalmente, o teste de Shapiro-Wilk rejeitou a hipótese nula de normalidade para os dados brutos do comprimento ($W = 0.9264$, $p\text{-value} = 0.0070$), refletindo a assimetria negativa provocada pelos espécimes mais pequenos.
+
+Não obstante a rejeição deste pressuposto, optou-se por manter a especificação da distribuição Normal para $Y_i$. Esta decisão fundamenta-se no facto de estarmos perante uma amostra de dimensão reduzida ($n = 45$), onde a distribuição empírica é altamente suscetível a flutuações amostrais e outliers pontuais. Além disso, a flexibilidade do paradigma Bayesiano e a posterior inclusão das covariáveis (Idade e Género) no Modelo 2 permitiram absorver de forma estruturada a assimetria observada na EDA, demonstrando que o pressuposto de normalidade assumido à partida se revelou robusto e adequado para a modelação final.
+
+O diagnóstico de convergência e eficiência das cadeias MCMC ratificou a fiabilidade de todos os modelos ajustados. Os valores máximos de $\hat{R}$ mantiveram-se estritamente abaixo do limite crítico (máximo de $1.0015$), e os tamanhos efetivos de amostra ($n_{\text{eff}}$) registaram medianas no limite máximo de $30\,000$ iterações, garantindo uma precisão numérica refinada e isenta de autocorrelação para o cálculo dos intervalos preditivos.
+
+No que concerne à seleção e performance, o Modelo 2 (Regressão Linear Múltipla) estabeleceu-se como a formulação ideal. O critério DIC corroborou de forma inequívoca o Modelo 2 como o mais parcimonioso e equilibrado ($-1.71$), penalizando com sucesso a insuficiência preditiva do Modelo 1 ($5.42$) e a sobreparametrização instável do Modelo 3 ($10.49$), este último prejudicado pelo risco severo de overfitting ao estimar um efeito aleatório individual para cada peixe numa amostra reduzida. Além do melhor compromisso de complexidade, o Modelo 2 minimizou os erros médios absolutos (MAE de $0.0962$ e MAE escalado de $0.3272$) e otimizou a cobertura empírica a 50% para $82.2\%$.
+
+Do ponto de vista biológico, o Modelo 2 foi o único capaz de isolar os efeitos latentes e responder à pergunta de investigação. Os coeficientes quantificaram o forte impacto positivo da Idade no crescimento alométrico e confirmaram o dimorfismo sexual da espécie (onde as fêmeas exibem comprimentos superiores quando controlada a idade), desmistificando o viés de confundimento que os dados brutos sugeriam. Em contrapartida, validou-se a premissa da EDA de que a percentagem de massa rochosa (Relevo) não detém relevância ecológica no crescimento destes peixes, atuando como um ruído ambiental não significativo.
+
+Em suma, o modelo de regressão linear múltipla bayesiano provou ser uma ferramenta preditiva e interpretativa robusta. Os resultados obtidos oferecem uma base científica sólida para a compreensão do desenvolvimento desta espécie, servindo como um subsídio metodológico fiável para futuros estudos de gestão de recursos aquícolas e conservação de ecossistemas marinhos.
+
